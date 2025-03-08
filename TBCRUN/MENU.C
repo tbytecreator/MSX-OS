@@ -7,12 +7,17 @@
 #include "fusion-c/header/io.h"
 
 #define KEY_ESC 27
-#define CSRSW 0xFCA9
+#define KEY_ENTER 13
+#define KEY_UP 30
+#define KEY_DOWN 31
+#define KEY_MENU_L 83
+#define KEY_MENU_U 115
 
 typedef struct 
 {
     char *texto;
     char *textoSelecionado;
+    int id;
 } MenuItem;
 
 // globals
@@ -20,6 +25,8 @@ static FCB file;
 static MenuItem *menuItems = NULL;
 static int menuItemCount = 0;
 static int selectedOption = 0;
+static int pageCount = 0;
+static int pageSize = 13;
 
 void ExecuteOption()
 {
@@ -35,14 +42,15 @@ void ExecuteOption()
 void AddMenuItem(const char *text) 
 {
     char *upperText = strdup(text);
-    StrToUpper(upperText);
-
     char *lowerText = strdup(text);
+
+    StrToUpper(upperText);
     StrToLower(lowerText);
     
     menuItems = (MenuItem *)realloc(menuItems, (menuItemCount + 1) * sizeof(MenuItem));
     menuItems[menuItemCount].texto = upperText;
     menuItems[menuItemCount].textoSelecionado = lowerText;
+    menuItems[menuItemCount].id = menuItemCount;
     menuItemCount++;
 }
 
@@ -90,33 +98,47 @@ void DrawBox(int x, int y, int width, int height)
     PrintChar(91);
 }
 
-void ReadFiles()
+void ReadFiles(char *mask)
 {
-    // Variable
     char sbuf[255];
     int n;
-  
-    // User interface 
-    n=FindFirst("*.ROM",sbuf,0);
+
+    n=FindFirst(mask,sbuf,0);
     for(;!n;)
     {
         AddMenuItem(sbuf);
         n=FindNext(sbuf);
     }
+    pageCount = menuItemCount / pageSize;
 }
 
 void PrintMenu()
 {
-    for (int i=0; i<menuItemCount; i++) 
+    int xpos = 0;
+    int ypos = 3;
+
+    for (int j=0; j<menuItemCount; j++) 
     {
-        Locate(1,4+i);
-        if (i == selectedOption) 
+        
+        if (j%2 == 0)
         {
-            Print(menuItems[i].textoSelecionado);
+            xpos = 1;
+            ypos++;
+        } 
+        else
+        {
+            xpos = 16;
+        }
+
+        Locate(xpos,ypos);
+
+        if (menuItems[j].id == selectedOption) 
+        {
+            Print(menuItems[j].textoSelecionado);
         } 
         else 
         {
-            Print(menuItems[i].texto);
+            Print(menuItems[j].texto);
         }
     }
 }
@@ -151,33 +173,97 @@ void ChangeColors()
     Vpoke(8219,color/16+(color-(color && 0xF0))*16);
 }
 
-void main(void)
+int Is80ColumnsMode()
 {
-    int key;
+    return (Vpeek(0xFCAF) & 0x80) != 0;
+}
 
-    // prepara a tela
-    Screen(1);
-    SetColors(2, 0, 0);
-    Cls();
-    PrepareChars();
-    ChangeColors();
-
-    // desenha o menu
+void DrawMenu()
+{
     DrawBox(0,0,40,2);
-    Locate(1,1);Print("TBC SPIDER FLASH WRITER");
+    Locate(1,1);Print("SYSTEM 1");
     DrawBox(0,3,40,15);
     DrawBox(0,19,40,2);
     Locate(1,20);Print("ESCOLHA UM ARQUIVO");
-    ReadFiles();
+}
+
+int DetectMSXVersion()
+{
+    int version = 0;
+    if (Peek(0x2D) == 0x00) 
+    {
+        version = 1; // MSX 1
+    } 
+    else if (Peek(0x2D) == 0x01) 
+    {
+        version = 2; // MSX 2
+    } 
+    else if (Peek(0x2D) == 0x02) 
+    {
+        version = 3; // MSX 2+
+    } 
+    else if (Peek(0x2D) == 0x03) 
+    {
+        version = 4; // MSX Turbo-R
+    }
+    return version;
+}
+
+void SetSystem(int version)
+{
+    if (version == 1) 
+    {
+        SetColors(2,0,0);
+        Screen(1);
+    } 
+    else if (version == 2) 
+    {
+        SetColors(2,0,0);
+        Screen(1);
+        Width(80);
+    } 
+    else if (version == 3) 
+    {
+        SetColors(2,0,0);
+        Screen(1);
+        Width(80);
+    } 
+    else if (version == 4) 
+    {
+        SetColors(2,0,0);
+        Screen(1);
+        Width(80);
+    }
+}
+
+void OpenMenu()
+{
+    DrawBox(30,3,40,15);
+    Locate(31,4);Print("MENU");
+    Locate(31,6);Print("1. Opção 1");
+}
+
+void main(void)
+{
+    int key;
+    int msxVersion = DetectMSXVersion();
+
+    Cls();
+    SetSystem(msxVersion);
+    PrepareChars();
+    ChangeColors();
+    DrawMenu();
+    ReadFiles("*.TXT");
     
     while(1)
     {
         PrintMenu();
-        Poke(CSRSW, 0);key = WaitKey();
+        while(key=Inkey(),!key);
         if (key == KEY_ESC) break;
-        if (key == 31) IncreaseOption();
-        if (key == 30) DecreaseOption();
-        if (key == 13) ExecuteOption();
+        if (key == KEY_DOWN) IncreaseOption();
+        if (key == KEY_UP) DecreaseOption();
+        if (key == KEY_ENTER) ExecuteOption();
+        if (key == KEY_MENU_L || key == KEY_MENU_U) OpenMenu();
     }
     Cls();
 }
