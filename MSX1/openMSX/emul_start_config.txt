@@ -5,3 +5,4 @@ bind F12 cycle videosource
 plug joyporta mouse 
 plug printerport simpl 
 diska dsk/ 
+diskb dskb/
