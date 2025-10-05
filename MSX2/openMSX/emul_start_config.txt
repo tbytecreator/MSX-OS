@@ -1,4 +1,4 @@
-machine Philips_NMS_8255 
+machine Panasonic_FS-A1GT
 ext msxdos2 
 ext gfx9000 
 bind F12 cycle videosource
